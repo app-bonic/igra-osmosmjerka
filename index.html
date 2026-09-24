@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Osmosmjerka</title>
+<meta name="description" content="Osmosmjerka na hrvatskom: pronađi skrivene riječi u mreži slova — životinje, gradovi, more, voće, škola. Tri težine, za djecu i odrasle.">
+<meta name="theme-color" content="#120a33">
+<link rel="icon" href="zajednicko/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="zajednicko/apple-touch-icon.png">
+<link rel="stylesheet" href="zajednicko/igre.css?v=09b9727d">
+<style>
+  .izbor { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px; }
+  .izbor button { padding: 7px 15px; border-radius: 999px; border: 1.5px solid var(--crta); background: var(--plo); cursor: pointer; font-weight: 600; }
+  .izbor button[aria-pressed="true"] { background: var(--cijan); color: #03242c; border-color: var(--cijan); box-shadow: 0 0 16px #22e3ff66; }
+  .mreza { --n: 10; display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 3px; width: min(100%, 560px); margin: 0 auto; touch-action: none; user-select: none; padding: 10px; background: #0006; border-radius: 20px; border: 1.5px solid var(--crta); }
+  .celija { aspect-ratio: 1; display: grid; place-items: center; border-radius: 9px; font: 700 clamp(13px, 3.4vw, 22px)/1 'Fredoka', sans-serif; background: #ffffff10; transition: background .12s, transform .12s; cursor: pointer; }
+  .celija.odabrano { background: var(--zuta); color: #2a1a00; transform: scale(1.08); }
+  .celija.nadeno { color: #0b0620; }
+  .popis { display: flex; flex-wrap: wrap; gap: 8px; }
+  .popis span { padding: 5px 12px; border-radius: 999px; background: #ffffff14; border: 1.5px solid var(--crta); font-weight: 600; letter-spacing: .03em; }
+  .popis span.nadeno { text-decoration: line-through; opacity: .85; color: #0b0620; border-color: transparent; }
+</style>
+</head>
+<body data-igra="igra-osmosmjerka">
+<header class="ig-vrh"></header>
+<main class="ig-omot">
+  <section class="ig-naslov"><span class="znak"></span><div><h1>Osmosmjerka</h1><p>Povuci prstom ili mišem preko slova i pronađi sve skrivene riječi. Riječi mogu ići vodoravno, okomito i ukoso — na težoj razini i unatrag.</p></div></section>
+
+  <div class="izbor" id="teme"></div>
+  <div class="izbor" id="tezine"></div>
+  <div class="stupci">
+    <div><div class="mreza" id="mreza"></div></div>
+    <aside class="slog" style="display:flex;flex-direction:column;gap:16px">
+      <div class="statusi">
+        <div class="status"><small>Pronađeno</small><b id="nadeno">0/0</b></div>
+        <div class="status"><small>Vrijeme</small><b id="vrijeme">0:00</b></div>
+        <div class="status"><small>Rekord</small><b id="rek">–</b></div>
+      </div>
+      <div class="ploca"><h2>Traži riječi</h2><div class="popis" id="popis"></div></div>
+      <div class="ploca kraj-igre" id="kraj" hidden></div>
+      <button type="button" class="gumb zuti" id="nova">Nova osmosmjerka</button>
+    </aside>
+  </div>
+</main>
+<footer class="ig-dno"></footer>
+<script src="zajednicko/igre.js?v=4689b224"></script>
+<script>
+'use strict';
+const { $, $$, esc, zvuk, konfeti, rekord, promijesaj } = IG;
+const TEME = {
+  'Životinje': 'medvjed vuk ris jelen srna lisica dupin galeb sokol sova jež vjeverica kornjača zec magarac konj krava koza ovca žaba gušter roda labud leptir pčela bubamara pas mačka miš orao',
+  'Gradovi': 'zagreb split rijeka osijek zadar pula dubrovnik šibenik karlovac varaždin sisak vukovar čakovec požega gospić rovinj poreč samobor trogir knin đakovo krapina opatija senj omiš sinj ilok umag labin pazin',
+  'More': 'brod jedro sidro galeb dupin val otok luka ribar mreža školjka rak hobotnica svjetionik plaža pijesak kamen bura jugo trajekt kupanje riba morski barka veslo',
+  'Voće i povrće': 'jabuka kruška šljiva trešnja višnja breskva marelica smokva grožđe limun naranča banana jagoda malina kupina lubenica dinja rajčica paprika mrkva krumpir luk kupus grah tikva',
+  'Škola': 'olovka gumica knjiga torba ploča kreda ravnalo bilježnica učitelj razred zvono sat odmor lopta ocjena zadaća pernica boje škare kalkulator',
+};
+const TEZINE = {
+  Lako: { n: 8, rijeci: 6, smjerovi: [[0, 1], [1, 0]] },
+  Srednje: { n: 10, rijeci: 8, smjerovi: [[0, 1], [1, 0], [1, 1], [-1, 1]] },
+  Teško: { n: 12, rijeci: 10, smjerovi: [[0, 1], [1, 0], [1, 1], [-1, 1], [0, -1], [-1, 0], [-1, -1], [1, -1]] },
+};
+const BOJE = ['#5dff9b', '#22e3ff', '#ffe14d', '#ff9f43', '#ff4bd8', '#9b7bff', '#ff4d6d', '#7fffd4', '#ffd6a5', '#caffbf'];
+const DIGRAFI = ['DŽ', 'LJ', 'NJ'];
+const slova = r => { const u = r.toLocaleUpperCase('hr'), v = []; for (let i = 0; i < u.length; i++) { const d = u.slice(i, i + 2); if (DIGRAFI.includes(d)) { v.push(d); i++; } else v.push(u[i]); } return v; };
+const PUNJENJE = 'AAAAEEEEIIIIOOOUUBCČĆDĐFGHJKKLLMMNNPRRRSSŠTTVVZŽ'.split('').concat(['LJ', 'NJ']);
+
+let tema = 'Životinje', tezina = 'Srednje', mreza, rijeci, nadene, pocetak, tajmer, odabir = null;
+
+function generiraj() {
+  const t = TEZINE[tezina], n = t.n;
+  for (let pokusaj = 0; pokusaj < 50; pokusaj++) {
+    const m = Array.from({ length: n }, () => Array(n).fill(null));
+    const kandidati = promijesaj(TEME[tema].split(' ')).map(w => ({ w: w.toLocaleUpperCase('hr'), s: slova(w) })).filter(x => x.s.length <= n && x.s.length >= 3);
+    const postavljene = [];
+    for (const k of kandidati.sort((a, b) => b.s.length - a.s.length)) {
+      if (postavljene.length >= t.rijeci) break;
+      let ok = false;
+      for (let i = 0; i < 150 && !ok; i++) {
+        const [dr, dc] = t.smjerovi[Math.floor(Math.random() * t.smjerovi.length)];
+        const r0 = Math.floor(Math.random() * n), c0 = Math.floor(Math.random() * n), L = k.s.length;
+        const r1 = r0 + dr * (L - 1), c1 = c0 + dc * (L - 1);
+        if (r1 < 0 || r1 >= n || c1 < 0 || c1 >= n) continue;
+        if (k.s.every((s, j) => { const v = m[r0 + dr * j][c0 + dc * j]; return v === null || v === s; })) {
+          const polja = k.s.map((s, j) => { m[r0 + dr * j][c0 + dc * j] = s; return [r0 + dr * j, c0 + dc * j]; });
+          postavljene.push({ ...k, polja }); ok = true;
+        }
+      }
+    }
+    if (postavljene.length < t.rijeci) continue;
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (m[r][c] === null) m[r][c] = PUNJENJE[Math.floor(Math.random() * PUNJENJE.length)];
+    return { m, postavljene: postavljene.sort((a, b) => a.w.localeCompare(b.w, 'hr')) };
+  }
+}
+
+function nova() {
+  const g = generiraj(); mreza = g.m; rijeci = g.postavljene; nadene = new Map();
+  const n = mreza.length;
+  $('#mreza').style.setProperty('--n', n);
+  $('#mreza').innerHTML = mreza.flatMap((red, r) => red.map((s, c) => `<div class="celija" data-r="${r}" data-c="${c}">${s}</div>`)).join('');
+  $('#kraj').hidden = true;
+  pocetak = Date.now(); clearInterval(tajmer); tajmer = setInterval(sat, 500); sat();
+  crtajPopis();
+  const rek = rekord.uzmi(kljuc(), null); $('#rek').textContent = rek === null ? '–' : fmt(rek);
+}
+const kljuc = () => `igra-osmosmjerka-${tezina}`;
+const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+function sat() { $('#vrijeme').textContent = fmt(Math.floor((Date.now() - pocetak) / 1000)); }
+function crtajPopis() {
+  $('#popis').innerHTML = rijeci.map(x => { const b = nadene.get(x.w); return `<span class="${b ? 'nadeno' : ''}" style="${b ? `background:${b}` : ''}">${esc(x.w)}</span>`; }).join('');
+  $('#nadeno').textContent = `${nadene.size}/${rijeci.length}`;
+}
+const celija = (r, c) => $(`.celija[data-r="${r}"][data-c="${c}"]`);
+function put(a, b) {
+  const dr = Math.sign(b.r - a.r), dc = Math.sign(b.c - a.c), L = Math.max(Math.abs(b.r - a.r), Math.abs(b.c - a.c));
+  if (!(a.r === b.r || a.c === b.c || Math.abs(b.r - a.r) === Math.abs(b.c - a.c))) return null;
+  return Array.from({ length: L + 1 }, (_, i) => [a.r + dr * i, a.c + dc * i]);
+}
+function oznaci(p) {
+  $$('.celija.odabrano').forEach(x => x.classList.remove('odabrano'));
+  (p || []).forEach(([r, c]) => celija(r, c).classList.add('odabrano'));
+}
+function izTocke(e) {
+  const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.celija');
+  return el ? { r: +el.dataset.r, c: +el.dataset.c } : null;
+}
+const mrezaEl = $('#mreza');
+mrezaEl.addEventListener('pointerdown', e => { const t = izTocke(e); if (!t) return; mrezaEl.setPointerCapture(e.pointerId); odabir = { a: t, b: t }; oznaci(put(t, t)); zvuk.klik(); });
+mrezaEl.addEventListener('pointermove', e => { if (!odabir) return; const t = izTocke(e); if (!t) return; const p = put(odabir.a, t); if (p) { odabir.b = t; oznaci(p); } });
+mrezaEl.addEventListener('pointerup', () => {
+  if (!odabir) return;
+  const p = put(odabir.a, odabir.b); odabir = null; oznaci(null);
+  if (!p || p.length < 2) return;
+  const tekst = p.map(([r, c]) => mreza[r][c]).join(''), obrnuto = [...p].reverse().map(([r, c]) => mreza[r][c]).join('');
+  const x = rijeci.find(w => !nadene.has(w.w) && (w.s.join('') === tekst || w.s.join('') === obrnuto));
+  if (!x) { zvuk.krivo(); return; }
+  const boja = BOJE[nadene.size % BOJE.length];
+  nadene.set(x.w, boja);
+  p.forEach(([r, c]) => { const el = celija(r, c); el.classList.add('nadeno'); el.style.background = boja; IG.efekt(el, 'poskok'); });
+  zvuk.tocno(); crtajPopis();
+  if (nadene.size === rijeci.length) kraj();
+});
+function kraj() {
+  clearInterval(tajmer);
+  const s = Math.floor((Date.now() - pocetak) / 1000), novi = rekord.predlozi(s, { igra: kljuc(), manjiBolji: true });
+  rekord.predlozi((rekord.uzmi() || 0) + 1);   // u kazalu igara: broj riješenih osmosmjerki
+  $('#rek').textContent = fmt(rekord.uzmi(kljuc()));
+  const el = $('#kraj'); el.hidden = false;
+  el.innerHTML = `<h2>Sve pronađeno!</h2><p>Vrijeme: <b style="color:#fff">${fmt(s)}</b>${novi ? ' — novi rekord!' : ''}</p>`;
+  zvuk.pobjeda(); konfeti();
+}
+
+$('#teme').innerHTML = Object.keys(TEME).map(t => `<button type="button" data-t="${t}" aria-pressed="${t === tema}">${t}</button>`).join('');
+$('#tezine').innerHTML = Object.keys(TEZINE).map(t => `<button type="button" data-z="${t}" aria-pressed="${t === tezina}">${t}</button>`).join('');
+$('#teme').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (!b) return; tema = b.dataset.t; $$('#teme button').forEach(x => x.setAttribute('aria-pressed', x === b)); zvuk.klik(); nova(); });
+$('#tezine').addEventListener('click', e => { const b = e.target.closest('[data-z]'); if (!b) return; tezina = b.dataset.z; $$('#tezine button').forEach(x => x.setAttribute('aria-pressed', x === b)); zvuk.klik(); nova(); });
+$('#nova').innerHTML = `${IG.ikona('osvjezi')} Nova osmosmjerka`;
+$('#nova').onclick = () => { zvuk.klik(); nova(); };
+nova();
+</script>
+</body>
+</html>
