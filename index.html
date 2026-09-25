@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#120a33">
 <link rel="icon" href="zajednicko/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="zajednicko/apple-touch-icon.png">
-<link rel="stylesheet" href="zajednicko/igre.css?v=09b9727d">
+<link rel="stylesheet" href="zajednicko/igre.css?v=cc838426">
 <style>
   .izbor { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px; }
   .izbor button { padding: 7px 15px; border-radius: 999px; border: 1.5px solid var(--crta); background: var(--plo); cursor: pointer; font-weight: 600; }
@@ -20,6 +20,14 @@
   .popis { display: flex; flex-wrap: wrap; gap: 8px; }
   .popis span { padding: 5px 12px; border-radius: 999px; background: #ffffff14; border: 1.5px solid var(--crta); font-weight: 600; letter-spacing: .03em; }
   .popis span.nadeno { text-decoration: line-through; opacity: .85; color: #0b0620; border-color: transparent; }
+  @media (max-width: 700px) {
+    .mreza { width: min(100%, calc(var(--igra-v, 100vh) - 168px)); padding: 6px; gap: 2px; border-radius: 16px; }
+    .celija { border-radius: 6px; font-size: clamp(12px, 4.2vw, 19px); }
+    .popis-ploca { padding: 8px 10px; }
+    .popis-ploca h2 { display: none; }
+    .popis { gap: 5px; justify-content: center; }
+    .popis span { padding: 2px 9px; font-size: 13.5px; }
+  }
 </style>
 </head>
 <body data-igra="igra-osmosmjerka">
@@ -27,24 +35,27 @@
 <main class="ig-omot">
   <section class="ig-naslov"><span class="znak"></span><div><h1>Osmosmjerka</h1><p>Povuci prstom ili mišem preko slova i pronađi sve skrivene riječi. Riječi mogu ići vodoravno, okomito i ukoso — na težoj razini i unatrag.</p></div></section>
 
-  <div class="izbor" id="teme"></div>
-  <div class="izbor" id="tezine"></div>
-  <div class="stupci">
-    <div><div class="mreza" id="mreza"></div></div>
+  <div class="izbori">
+    <div class="izbor" id="teme"></div>
+    <div class="izbor" id="tezine"></div>
+  </div>
+  <div class="stupci mob">
+    <div class="mob-igra"><div class="mreza" id="mreza"></div></div>
     <aside class="slog" style="display:flex;flex-direction:column;gap:16px">
-      <div class="statusi">
+      <div class="statusi mob-gore">
         <div class="status"><small>Pronađeno</small><b id="nadeno">0/0</b></div>
         <div class="status"><small>Vrijeme</small><b id="vrijeme">0:00</b></div>
         <div class="status"><small>Rekord</small><b id="rek">–</b></div>
+        <button type="button" class="gumb zuti status-gumb samo-mob" id="novaMob" title="Nova osmosmjerka"></button>
       </div>
-      <div class="ploca"><h2>Traži riječi</h2><div class="popis" id="popis"></div></div>
-      <div class="ploca kraj-igre" id="kraj" hidden></div>
-      <button type="button" class="gumb zuti" id="nova">Nova osmosmjerka</button>
+      <div class="ploca mob-dolje popis-ploca"><h2>Traži riječi</h2><div class="popis" id="popis"></div></div>
+      <div class="ploca kraj-igre mob-preko" id="kraj" hidden></div>
+      <button type="button" class="gumb zuti samo-sirok" id="nova">Nova osmosmjerka</button>
     </aside>
   </div>
 </main>
 <footer class="ig-dno"></footer>
-<script src="zajednicko/igre.js?v=4689b224"></script>
+<script src="zajednicko/igre.js?v=467e127a"></script>
 <script>
 'use strict';
 const { $, $$, esc, zvuk, konfeti, rekord, promijesaj } = IG;
@@ -155,7 +166,8 @@ $('#tezine').innerHTML = Object.keys(TEZINE).map(t => `<button type="button" dat
 $('#teme').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (!b) return; tema = b.dataset.t; $$('#teme button').forEach(x => x.setAttribute('aria-pressed', x === b)); zvuk.klik(); nova(); });
 $('#tezine').addEventListener('click', e => { const b = e.target.closest('[data-z]'); if (!b) return; tezina = b.dataset.z; $$('#tezine button').forEach(x => x.setAttribute('aria-pressed', x === b)); zvuk.klik(); nova(); });
 $('#nova').innerHTML = `${IG.ikona('osvjezi')} Nova osmosmjerka`;
-$('#nova').onclick = () => { zvuk.klik(); nova(); };
+$('#novaMob').innerHTML = IG.ikona('osvjezi');
+$('#nova').onclick = $('#novaMob').onclick = () => { zvuk.klik(); nova(); };
 nova();
 </script>
 </body>
